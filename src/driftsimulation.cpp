@@ -119,22 +119,33 @@ int DriftSimulation::interact_reproduce()
 
     int sampled_parent;
 
-    // TODO
-    for (int ind_idx = 0; ind_idx < next_gen.size(); ++ind_idx)
+    for (int ind_idx = 0; ind_idx < next_generation.size(); ++ind_idx)
     {
         sampled_parent = parent_sampler(rng_r);
-        next_gen[ind_idx].is_hawk = pop[sampled_parent].is_hawk;
+        next_generation[ind_idx].is_hawk = pop[sampled_parent].is_hawk;
 
         if (uniform(rng_r) < mu)
         {
-            next_gen[ind_idx].is_hawk = !next_gen[ind_idx].is_hawk;
+            next_generation[ind_idx].is_hawk = !next_generation[ind_idx].is_hawk;
         }
     }
 
     // replace current generation with the next
-    pop = next_gen;
+    pop = next_generation;
 
 } // end DriftSimulation::interact_reproduce()
+
+void DriftSimulation::write_data(Rcpp::DataFrame &the_data)
+{
+    double p_hawk = 0;
+    for (int ind_idx = 0; ind_idx < pop.size(); ++ind_idx)
+    {
+        p_hawk += pop[ind_idx].is_hawk;
+
+
+
+    }
+}
 
 Rcpp::DataFrame DriftSimulation::run()
 {
@@ -151,16 +162,16 @@ Rcpp::DataFrame DriftSimulation::run()
     Rcpp::DataFrame simulation_result =
        Rcpp::DataFrame::create(
            Rcpp::Named("pHawk") = pHawk
-            ,Rcpp::Named("unpaired") = unPaired
         );
 
 
     for (int generation = 1;
          generation <= max_time;
          ++generation)
-         )
     {
         interact_reproduce();
+
+        write_data(simulation_result);
     }
 
     return(simulation_result);

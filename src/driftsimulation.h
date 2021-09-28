@@ -21,6 +21,7 @@ class DriftSimulation
         double v;
         double c;
         double payoff_matrix[2][2];
+        double mu;
         int max_time;
         double pHawk_init;
 
@@ -33,18 +34,19 @@ class DriftSimulation
         int output_nth_generation;
 
         // let all hawks and doves interact
-        int interact();
+        int interact_reproduce();
 
-        // sample the next generation
-        int next_generation();
+        void write_data(Rcpp::DataFrame &data);
+
 
     public:
        DriftSimulation(
                int const N
                ,double const v
                ,double const c
+               ,double const mu
                ,double const pHawk_init
-               ,long int const max_time
+               ,int const max_time
                ,int output_nth_generation
                );
 
