@@ -21,12 +21,12 @@
 // '
 // ' @export
 // [[Rcpp::export]]
-void runSimulation(
+Rcpp::DataFrame runSimulation(
         int const N
         ,double const v
         ,double const c
         ,double const mu
-        ,long int max_time
+        ,int max_time
         ,double pHawk_init
         ,int output_nth_generation
         ) {
@@ -42,4 +42,5 @@ void runSimulation(
 
     Rcpp::DataFrame output = df.run();
 
+    return(output);
 } //

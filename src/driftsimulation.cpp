@@ -54,8 +54,10 @@ DriftSimulation::DriftSimulation(
 
 } // end DriftSimulation::DriftSimulation()
 
-// let hawks and doves interact with each other and collect payoffs
-int DriftSimulation::interact_reproduce()
+// let hawks and doves interact with each other
+// collect payoffs
+// and then have them reproduce
+void DriftSimulation::interact_reproduce()
 {
     // shuffle the vector of individuals
     // so that we can make pairwise interactions
@@ -135,34 +137,28 @@ int DriftSimulation::interact_reproduce()
 
 } // end DriftSimulation::interact_reproduce()
 
-void DriftSimulation::write_data(Rcpp::DataFrame &the_data)
+void DriftSimulation::write_data(
+        Rcpp::NumericVector &the_data)
 {
     double p_hawk = 0;
     for (int ind_idx = 0; ind_idx < pop.size(); ++ind_idx)
     {
         p_hawk += pop[ind_idx].is_hawk;
-
-
-
     }
+
+    p_hawk /= pop.size();
+
+    the_data.push_back(p_hawk);
 }
 
 Rcpp::DataFrame DriftSimulation::run()
 {
-    Rcpp::Rcout << "starting simulation..." << std::endl;
-
     // calculate number of rows of the data frame
     int nrows = floor(static_cast<double>(max_time)/
                       output_nth_generation);
 
     // initialize the data
-    Rcpp::NumericVector pHawk(nrows);
-    Rcpp::NumericVector unPaired(nrows);
-
-    Rcpp::DataFrame simulation_result =
-       Rcpp::DataFrame::create(
-           Rcpp::Named("pHawk") = pHawk
-        );
+    Rcpp::NumericVector pHawk{};
 
 
     for (int generation = 1;
@@ -171,8 +167,20 @@ Rcpp::DataFrame DriftSimulation::run()
     {
         interact_reproduce();
 
-        write_data(simulation_result);
+        // write data every nth generation
+        // to vector
+        if (generation % output_nth_generation == 0)
+        {
+            write_data(pHawk);
+        }
     }
+
+    // put everything in data.frame, in case
+    // we want to collect different aspects of the dataset
+    Rcpp::DataFrame simulation_result =
+       Rcpp::DataFrame::create(
+           Rcpp::Named("pHawk") = pHawk
+        );
 
     return(simulation_result);
 } // end DriftSimulation::run

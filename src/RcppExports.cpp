@@ -11,19 +11,20 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // runSimulation
-void runSimulation(int const N, double const v, double const c, double const mu, long int max_time, double pHawk_init, int output_nth_generation);
+Rcpp::DataFrame runSimulation(int const N, double const v, double const c, double const mu, int max_time, double pHawk_init, int output_nth_generation);
 RcppExport SEXP _driftSim_runSimulation(SEXP NSEXP, SEXP vSEXP, SEXP cSEXP, SEXP muSEXP, SEXP max_timeSEXP, SEXP pHawk_initSEXP, SEXP output_nth_generationSEXP) {
 BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< int const >::type N(NSEXP);
     Rcpp::traits::input_parameter< double const >::type v(vSEXP);
     Rcpp::traits::input_parameter< double const >::type c(cSEXP);
     Rcpp::traits::input_parameter< double const >::type mu(muSEXP);
-    Rcpp::traits::input_parameter< long int >::type max_time(max_timeSEXP);
+    Rcpp::traits::input_parameter< int >::type max_time(max_timeSEXP);
     Rcpp::traits::input_parameter< double >::type pHawk_init(pHawk_initSEXP);
     Rcpp::traits::input_parameter< int >::type output_nth_generation(output_nth_generationSEXP);
-    runSimulation(N, v, c, mu, max_time, pHawk_init, output_nth_generation);
-    return R_NilValue;
+    rcpp_result_gen = Rcpp::wrap(runSimulation(N, v, c, mu, max_time, pHawk_init, output_nth_generation));
+    return rcpp_result_gen;
 END_RCPP
 }
 

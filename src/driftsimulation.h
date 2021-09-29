@@ -34,9 +34,10 @@ class DriftSimulation
         int output_nth_generation;
 
         // let all hawks and doves interact
-        int interact_reproduce();
+        void interact_reproduce();
 
-        void write_data(Rcpp::DataFrame &data);
+        // append the data to the NumericVector data
+        void write_data(Rcpp::NumericVector &data);
 
 
     public:
