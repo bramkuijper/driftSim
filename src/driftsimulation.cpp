@@ -10,20 +10,25 @@ DriftSimulation::DriftSimulation(
         int const s_N // number of individuals
        ,double const s_v // value of winning
        ,double const s_c // cost of losing
+       ,bool const s_pure // whether simulation works with pure or mixed strategy
        ,double const s_mu // mutation probability from H->D and D->H
        ,double const s_pHawk_init // initial frequency of hawks
        ,int const s_max_time // maximum duration of the simulation
-       ,int s_output_nth_generation) :
+       ,int s_output_nth_generation
+       ,double const s_sd_pHawkMixed=0.0
+       ) :
     rng_r((std::random_device())()) // init random number generator
     ,uniform(0.0, 1.0)
     ,N{s_N}
     ,v{s_v}
     ,c{s_c}
-    ,payoff_matrix{{(s_v - s_c)/2.0, s_v},{0, s_v/2.0}}
+    ,is_pure{s_pure}
+    ,payoff_matrix{{s_v/2.0, 0},{s_v, (s_v - s_c)/2.0}}
     ,mu{s_mu}
     ,max_time{s_max_time}
     ,pHawk_init{s_pHawk_init}
     ,output_nth_generation{s_output_nth_generation}
+    ,sd_pHawkMixed{s_sd_pHawkMixed}
 {
     if (output_nth_generation < 1)
     {
@@ -42,12 +47,17 @@ DriftSimulation::DriftSimulation(
         throw msg.str();
     }
 
+    double init_prob_hawk = is_pure ? 0.0 : pHawk_init;
+
     for (int pop_idx = 0; pop_idx < N; ++pop_idx)
     {
         Individual init_ind;
 
         init_ind.is_hawk = uniform(rng_r) < pHawk_init;
         init_ind.payoff = 0.0;
+
+        // initialize the mixed probability of becoming a hawk
+        init_ind.prob_hawk = init_prob_hawk;
 
         pop.push_back(init_ind);
     } // end for (int pop_idx)
@@ -62,7 +72,7 @@ void DriftSimulation::interact_reproduce()
     // shuffle the vector of individuals
     // so that we can make pairwise interactions
     // along the pop-vector's indices (i.e., 0 with 1,
-    // 2 with 3, etc..)
+    // 2 with 3, etc..) among random individuals
     std::shuffle(std::begin(pop),
                  std::end(pop),
                  rng_r
@@ -77,7 +87,7 @@ void DriftSimulation::interact_reproduce()
     std::vector <Individual> next_generation(pop.size());
 
     // loop through individuals in pairs and calculate payoffs
-    for (int ind_idx = 0; ind_idx < pop.size(); ind_idx+=2)
+    for (size_t ind_idx = 0; ind_idx < pop.size(); ind_idx+=2)
     {
         ind1_is_hawk = pop[ind_idx].is_hawk;
         ind2_is_hawk = pop[ind_idx + 1].is_hawk;
@@ -109,7 +119,12 @@ void DriftSimulation::interact_reproduce()
         } // end if-else HH
 
         payoff_vector[ind_idx] = pop[ind_idx].payoff;
+
+        assert(payoff_vector[ind_idx] >= 0.0);
+
         payoff_vector[ind_idx + 1] = pop[ind_idx + 1].payoff;
+
+        assert(payoff_vector[ind_idx + 1] >= 0.0);
 
     } // end for int idx
 
@@ -121,14 +136,42 @@ void DriftSimulation::interact_reproduce()
 
     int sampled_parent;
 
-    for (int ind_idx = 0; ind_idx < next_generation.size(); ++ind_idx)
+    for (size_t ind_idx = 0; ind_idx < next_generation.size(); ++ind_idx)
     {
         sampled_parent = parent_sampler(rng_r);
         next_generation[ind_idx].is_hawk = pop[sampled_parent].is_hawk;
+        next_generation[ind_idx].prob_hawk = pop[sampled_parent].prob_hawk;
 
-        if (uniform(rng_r) < mu)
+        if (is_pure)
         {
-            next_generation[ind_idx].is_hawk = !next_generation[ind_idx].is_hawk;
+            if (uniform(rng_r) < mu)
+            {
+                next_generation[ind_idx].is_hawk =
+                    !next_generation[ind_idx].is_hawk;
+            }
+        }
+        else
+        {
+            if (uniform(rng_r) < mu)
+            {
+                next_generation[ind_idx].prob_hawk =
+                    next_generation[ind_idx].prob_hawk +
+                        R::rnorm(0.0, sd_pHawkMixed);
+
+                // set boundaries
+                next_generation[ind_idx].prob_hawk =
+                    next_generation[ind_idx].prob_hawk > 1.0 ?
+                        1.0
+                        :
+                        (next_generation[ind_idx].prob_hawk < 0.0 ?
+                            0.0
+                            :
+                            next_generation[ind_idx].prob_hawk);
+            }
+
+            // determine phenotype of this new individual
+            next_generation[ind_idx].is_hawk = uniform(rng_r) <
+                next_generation[ind_idx].prob_hawk;
         }
     }
 
@@ -137,20 +180,38 @@ void DriftSimulation::interact_reproduce()
 
 } // end DriftSimulation::interact_reproduce()
 
+
+// get the stats
 void DriftSimulation::write_data(
-        Rcpp::NumericVector &the_data)
+            int const generation_t
+            ,Rcpp::NumericVector &freq_Hawk
+            ,Rcpp::NumericVector &mean_pHawk
+            ,Rcpp::NumericVector &sd_pHawk
+            ,Rcpp::NumericVector & generation_vector)
 {
-    double p_hawk = 0;
+    int n_hawk = 0;
+    double p_hawk = 0.0;
+    double ss_hawk = 0.0;
+    double p;
+
     for (int ind_idx = 0; ind_idx < pop.size(); ++ind_idx)
     {
-        p_hawk += pop[ind_idx].is_hawk;
+        n_hawk += pop[ind_idx].is_hawk;
+        p = pop[ind_idx].prob_hawk;
+
+        p_hawk += p;
+        ss_hawk += p * p;
     }
 
-    p_hawk /= pop.size();
+    double mean_p_hawk = p_hawk/pop.size();
 
-    the_data.push_back(p_hawk);
+    freq_Hawk.push_back((double)n_hawk/pop.size());
+    mean_pHawk.push_back(mean_p_hawk);
+    sd_pHawk.push_back(ss_hawk/pop.size() - mean_p_hawk * mean_p_hawk);
+    generation_vector.push_back(generation_t);
 }
 
+// run the actual simulation
 Rcpp::DataFrame DriftSimulation::run()
 {
     // calculate number of rows of the data frame
@@ -158,7 +219,11 @@ Rcpp::DataFrame DriftSimulation::run()
                       output_nth_generation);
 
     // initialize the data
-    Rcpp::NumericVector pHawk{};
+    Rcpp::NumericVector freq_Hawk{};
+    Rcpp::NumericVector mean_pHawk{};
+    Rcpp::NumericVector sd_pHawk{};
+    Rcpp::NumericVector generation_vector{};
+
 
 
     for (int generation = 1;
@@ -171,7 +236,14 @@ Rcpp::DataFrame DriftSimulation::run()
         // to vector
         if (generation % output_nth_generation == 0)
         {
-            write_data(pHawk);
+            write_data(generation
+                            ,freq_Hawk
+                           ,mean_pHawk
+                           ,sd_pHawk
+                           ,generation_vector);
+
+            // check for user interruption
+            Rcpp::checkUserInterrupt();
         }
     }
 
@@ -179,7 +251,10 @@ Rcpp::DataFrame DriftSimulation::run()
     // we want to collect different aspects of the dataset
     Rcpp::DataFrame simulation_result =
        Rcpp::DataFrame::create(
-           Rcpp::Named("pHawk") = pHawk
+           Rcpp::Named("generation") = generation_vector
+            ,Rcpp::Named("freq_Hawk") = freq_Hawk
+            ,Rcpp::Named("mean_pHawkMixed") = mean_pHawk
+            ,Rcpp::Named("sd_pHawkMixed") = sd_pHawk
         );
 
     return(simulation_result);
